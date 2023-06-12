@@ -2,18 +2,24 @@
   <arg name="machine_name" default="$(optenv HOSTNAME localhost)"/>
   <arg name="config_file" default="$(find system_monitor)/config/system_monitor.yaml"/>
   <arg name="output" default="log"/>
+  <arg name="cpu_monitor" default="true"/>
+  <arg name="hdd_monitor" default="true"/>
+  <arg name="mem_monitor" default="true"/>
+  <arg name="ntp_monitor" default="true"/>
+  <arg name="net_monitor" default="true"/>
+
 
   <group ns="system_monitor/$(arg machine_name)">
     <node name="cpu_monitor" pkg="system_monitor" type="cpu_monitor.py"
-      output="$(arg output)" respawn="true"/>
+      output="$(arg output)" respawn="true" if="$(arg cpu_monitor)"/>
     <node name="hdd_monitor" pkg="system_monitor" type="hdd_monitor.py"
-      output="$(arg output)" respawn="true"/>
+      output="$(arg output)" respawn="true" if="$(arg hdd_monitor)"/>
     <node name="mem_monitor" pkg="system_monitor" type="mem_monitor.py"
-      output="$(arg output)" respawn="true"/>
+      output="$(arg output)" respawn="true" if="$(arg mem_monitor)"/>
     <node name="ntp_monitor" pkg="system_monitor" type="ntp_monitor.py"
-      output="$(arg output)" respawn="true"/>
+      output="$(arg output)" respawn="true" if="$(arg ntp_monitor)"/>
     <node name="net_monitor" pkg="system_monitor" type="net_monitor.py"
-      output="$(arg output)" respawn="true"/>      
+      output="$(arg output)" respawn="true" if="$(arg net_monitor)"/>      
   </group>
   
   <node name= "system_monitor" pkg="system_monitor" type="system_monitor_node.py"
