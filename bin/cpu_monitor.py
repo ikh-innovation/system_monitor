@@ -387,7 +387,7 @@ class CPUMonitor():
     def get_core_temp_names(self):
         temp_vals = []
         try:
-            p = subprocess.Popen('find /sys/devices -name temp1_input',
+            p = subprocess.Popen('find /sys/devices/platform -name temp*_input',
                                 stdout = subprocess.PIPE,
                                 stderr = subprocess.PIPE, shell = True)
             stdout, stderr = p.communicate()
