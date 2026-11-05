@@ -19,5 +19,6 @@
   <run_depend>hddtemp</run_depend>
   <run_depend>ntpdate</run_depend>
   <run_depend>ifstat</run_depend>
+  <run_depend>sensor_msgs</run_depend>
   <run_depend>message_runtime</run_depend>
 </package>
