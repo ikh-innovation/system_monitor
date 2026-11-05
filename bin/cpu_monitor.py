@@ -46,6 +46,7 @@ import traceback
 import threading
 from threading import Timer
 import sys, os, time
+import re
 from time import sleep
 import subprocess
 import string
@@ -401,6 +402,13 @@ class CPUMonitor():
             vals.append(KeyValue(key = 'mpstat Exception', value = str(e)))
 
         return mp_level, load_dict[mp_level], vals
+
+    ## Sort key for temperature files: coretemp first, then by hwmon directory and
+    ## sensor number, so the CPU package sensor (coretemp temp1) is always the first entry
+    def _temp_sort_key(self, path):
+        directory, name = os.path.split(path)
+        match = re.search(r'(\d+)_input$', name)
+        return ('/coretemp.' not in directory, directory, int(match.group(1)) if match else 0)
 
     ## Returns names for core temperature files
     ## Returns list of names, each name can be read like file
