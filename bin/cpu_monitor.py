@@ -278,10 +278,10 @@ class CPUMonitor():
             if retcode != 0:
                 vals.append(KeyValue(key = 'uptime Failed', value = stderr))
                 return DiagnosticStatus.ERROR, vals
-            
+
             if sys.version_info.major == 3:
                 stdout = stdout.decode('UTF-8')
-            
+
             upvals = stdout.split()
             load1 = float(upvals[-3].rstrip(',').replace(',','.'))/self._num_cores
             load5 = float(upvals[-2].rstrip(',').replace(',','.'))/self._num_cores
