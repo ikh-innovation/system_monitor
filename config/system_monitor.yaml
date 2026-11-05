@@ -9,10 +9,13 @@ cpu_monitor:
 hdd_monitor:
   no_hdd_temp: true
   no_hdd_temp_warn: false
+  hdd_temp_source: sysfs
   hdd_level_warn: 0.95
   hdd_level_error: 0.99
-  hdd_temp_warn: 55.0
-  hdd_temp_error: 70.0
+  hdd_temp_warn: 70.0
+  hdd_temp_error: 80.0
+  publish_temperature: false
+  temperature_topic: drive_temperature
 mem_monitor:
   mem_level_warn: 0.95
   mem_level_error: 0.99

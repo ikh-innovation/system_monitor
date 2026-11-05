@@ -48,6 +48,8 @@ from threading import Timer
 import sys, os, time
 from time import sleep
 import subprocess
+import glob
+from sensor_msgs.msg import Temperature
 
 import socket
 
@@ -63,6 +65,43 @@ temp_dict = { 0: 'OK', 1: 'Hot', 2: 'Critical Hot' }
 usage_dict = { 0: 'OK', 1: 'Low Disk Space', 2: 'Very Low Disk Space' }
 
 REMOVABLE = ['/dev/sg1', '/dev/sdb'] # Store removable drives so we can ignore if removed
+
+HWMON_ROOT = '/sys/class/hwmon'
+SYSFS_DRIVE_SENSORS = ['nvme', 'drivetemp'] # hwmon drivers that report drive temperatures
+
+def read_sysfs(path, default = None):
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except (IOError, OSError):
+        return default
+
+## Reads drive temperatures from the kernel hwmon interface (no hddtemp daemon needed).
+## Returns the same format as get_hddtemp_data(), temperatures in DegC.
+def get_sysfs_drive_temps():
+    drives = []
+    makes = []
+    temps = []
+    for hwmon in sorted(glob.glob(os.path.join(HWMON_ROOT, 'hwmon*'))):
+        if read_sysfs(os.path.join(hwmon, 'name')) not in SYSFS_DRIVE_SENSORS:
+            continue
+        device = os.path.join(hwmon, 'device')
+        drives.append(os.path.basename(os.path.realpath(device)))
+        makes.append(read_sysfs(os.path.join(device, 'model'), 'Unknown'))
+        try:
+            temps.append('%.1f' % (int(read_sysfs(os.path.join(hwmon, 'temp1_input'))) / 1000.0))
+        except (TypeError, ValueError):
+            temps.append('N/A')
+
+    if not drives:
+        return False, [ 'None' ], [ 'No drive temperature sensor in %s' % HWMON_ROOT ], [ 'N/A' ]
+    return True, drives, makes, temps
+
+def parse_temp(temp):
+    try:
+        return float(temp)
+    except (TypeError, ValueError):
+        return None
 
 ## Connects to hddtemp daemon to get temp, HDD make.
 def get_hddtemp_data(hostname = 'localhost', port = 7634):
@@ -142,6 +181,12 @@ class hdd_monitor():
         self._hdd_level_error = rospy.get_param('~hdd_level_error', hdd_level_error)
         self._hdd_temp_warn = rospy.get_param('~hdd_temp_warn', hdd_temp_warn)
         self._hdd_temp_error = rospy.get_param('~hdd_temp_error', hdd_temp_error)
+        self._temp_source = rospy.get_param('~hdd_temp_source', 'hddtemp') # 'hddtemp' or 'sysfs'
+
+        self._temp_pub = None
+        if not self._no_temp and rospy.get_param('~publish_temperature', False):
+            self._temp_pub = rospy.Publisher(rospy.get_param('~temperature_topic', 'drive_temperature'),
+                                             Temperature, queue_size = 10)
 
         self._diag_pub = rospy.Publisher('/diagnostics', DiagnosticArray, queue_size = 100)
 
@@ -190,28 +235,36 @@ class hdd_monitor():
         diag_level = DiagnosticStatus.OK
         diag_message = 'OK'
 
-        temp_ok, drives, makes, temps = get_hddtemp_data()
+        if self._temp_source == 'sysfs':
+            temp_ok, drives, makes, temps = get_sysfs_drive_temps()
+        else:
+            temp_ok, drives, makes, temps = get_hddtemp_data()
+        source_ok = temp_ok
 
         for index in range(0, len(drives)):
             temp = temps[index]
+            temp_val = parse_temp(temp)
 
-            if not isinstance(temp, str):
-                tmp_u = temp.decode("UTF-8")
-            else:
-                tmp_u = unicode(temp)
-
-            if not tmp_u.isnumeric() and drives[index] not in REMOVABLE:
+            if temp_val is None and drives[index] not in REMOVABLE:
                 temp_level = DiagnosticStatus.ERROR
                 temp_ok = False
-            elif not tmp_u.isnumeric() and drives[index] in REMOVABLE:
+            elif temp_val is None and drives[index] in REMOVABLE:
                 temp_level = DiagnosticStatus.OK
                 temp = "Removed"
             else:
                 temp_level = DiagnosticStatus.OK
-                if float(temp) >= self._hdd_temp_warn:
+                if temp_val >= self._hdd_temp_warn:
                     temp_level = DiagnosticStatus.WARN
-                if float(temp) >= self._hdd_temp_error:
+                if temp_val >= self._hdd_temp_error:
                     temp_level = DiagnosticStatus.ERROR
+
+                if self._temp_pub is not None and source_ok:
+                    msg = Temperature()
+                    msg.header.stamp = rospy.Time.now()
+                    msg.header.frame_id = drives[index]
+                    msg.temperature = temp_val
+                    self._temp_pub.publish(msg)
+
 
             diag_level = max(diag_level, temp_level)
             
