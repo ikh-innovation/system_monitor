@@ -429,9 +429,12 @@ class CPUMonitor():
                 return []
 
             for ln in stdout.split('\n'):
-                temp_vals.append(ln.strip())
+                if ln.strip():
+                    temp_vals.append(ln.strip())
 
+            temp_vals.sort(key = self._temp_sort_key)
             return temp_vals
+
         except:
             rospy.logerr('Exception finding temp vals: %s' % traceback.format_exc())
             return []
