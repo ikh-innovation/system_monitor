@@ -60,7 +60,7 @@ cpu_load_error = 1.1
 cpu_load1_warn = 0.9
 cpu_load5_warn = 0.8
 cpu_temp_warn = 85.0
-cpu_temp_error = 90.0
+cpu_temp_error = 95.0
 
 num_cores = subprocess.Popen('lscpu | grep "^CPU(s):"',
                                 stdout= subprocess.PIPE,
