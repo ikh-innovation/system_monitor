@@ -50,7 +50,7 @@ from time import sleep
 import subprocess
 import glob
 from sensor_msgs.msg import Temperature
-
+import re
 import socket
 
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
@@ -95,6 +95,44 @@ def get_sysfs_drive_temps():
 
     if not drives:
         return False, [ 'None' ], [ 'No drive temperature sensor in %s' % HWMON_ROOT ], [ 'N/A' ]
+    return True, drives, makes, temps
+
+SMARTCTL = '/usr/sbin/smartctl'
+NVME_DEVICES = '/dev/nvme[0-9]*'
+
+## Reads NVMe temperatures with smartctl, for kernels without nvme hwmon (< 5.5, e.g. Ubuntu 18.04).
+## Opening /dev/nvmeX needs root, so the command runs through 'sudo -n' when the node is not root.
+## timeout runs inside sudo: sudo does not relay a SIGTERM sent from its own process group.
+def get_smartctl_drive_temps():
+    drives = []
+    makes = []
+    temps = []
+    for dev in sorted(glob.glob(NVME_DEVICES)):
+        if not re.match(r'nvme\d+$', os.path.basename(dev)):
+            continue
+        cmd = ['timeout', '5', SMARTCTL, '-i', '-A', dev]
+        if os.geteuid() != 0:
+            cmd = ['sudo', '-n'] + cmd
+        try:
+            p = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+            out = p.communicate()[0]
+            if not isinstance(out, str):
+                out = out.decode('UTF-8', 'replace')
+        except OSError as e:
+            out = str(e)
+        model = re.search(r'^Model Number:\s*(.+)$', out, re.M)
+        temp = re.search(r'^Temperature:\s*(-?\d+) Celsius', out, re.M)
+        drives.append(os.path.basename(dev))
+        makes.append(model.group(1).strip() if model else 'Unknown')
+        if temp:
+            temps.append(temp.group(1))
+        else:
+            temps.append('N/A')
+            rospy.logwarn_throttle(60, 'hdd_monitor: no temperature from "%s": %s'
+                                   % (' '.join(cmd), out.strip()[-200:]))
+
+    if not drives:
+        return False, [ 'None' ], [ 'No NVMe device %s' % NVME_DEVICES ], [ 'N/A' ]
     return True, drives, makes, temps
 
 def parse_temp(temp):
@@ -181,7 +219,8 @@ class hdd_monitor():
         self._hdd_level_error = rospy.get_param('~hdd_level_error', hdd_level_error)
         self._hdd_temp_warn = rospy.get_param('~hdd_temp_warn', hdd_temp_warn)
         self._hdd_temp_error = rospy.get_param('~hdd_temp_error', hdd_temp_error)
-        self._temp_source = rospy.get_param('~hdd_temp_source', 'hddtemp') # 'hddtemp' or 'sysfs'
+        # 'hddtemp', 'sysfs', 'smartctl' or 'auto' (sysfs, smartctl when the kernel has no drive hwmon)
+        self._temp_source = rospy.get_param('~hdd_temp_source', 'hddtemp')
 
         self._temp_pub = None
         if not self._no_temp and rospy.get_param('~publish_temperature', False):
@@ -237,6 +276,12 @@ class hdd_monitor():
 
         if self._temp_source == 'sysfs':
             temp_ok, drives, makes, temps = get_sysfs_drive_temps()
+        elif self._temp_source == 'smartctl':
+            temp_ok, drives, makes, temps = get_smartctl_drive_temps()
+        elif self._temp_source == 'auto':
+            temp_ok, drives, makes, temps = get_sysfs_drive_temps()
+            if not temp_ok:
+                temp_ok, drives, makes, temps = get_smartctl_drive_temps()
         else:
             temp_ok, drives, makes, temps = get_hddtemp_data()
         source_ok = temp_ok
