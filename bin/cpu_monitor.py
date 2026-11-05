@@ -208,12 +208,12 @@ class CPUMonitor():
                 temp = float(tmp) / 1000
                 diag_vals.append(KeyValue(key = 'Core %d Temperature' % index, value = str(temp)+"DegC"))
 
-                if temp >= self._cpu_temp_warn:
-                    diag_level = max(diag_level, DiagnosticStatus.WARN)
-                    diag_msgs.append('Warm')
-                elif temp >= self._cpu_temp_error:
+                if temp >= self._cpu_temp_error:
                     diag_level = max(diag_level, DiagnosticStatus.ERROR)
                     diag_msgs.append('Hot')
+                elif temp >= self._cpu_temp_warn:
+                    diag_level = max(diag_level, DiagnosticStatus.WARN)
+                    diag_msgs.append('Warm')
             else:
                 diag_level = max(diag_level, DiagnosticStatus.ERROR) # Error if not numeric value
                 diag_vals.append(KeyValue(key = 'Core %s Temperature' % index, value = tmp))
