@@ -99,10 +99,14 @@ def get_sysfs_drive_temps():
 
 SMARTCTL = '/usr/sbin/smartctl'
 NVME_DEVICES = '/dev/nvme[0-9]*'
+SMARTCTL_SETUP_HINT = ('run "Setup NVMe temperature monitoring" of aristos_magic_bash '
+                       '(sudo -E bash magic.sh) to install smartmontools and the sudoers rule')
 
 ## Reads NVMe temperatures with smartctl, for kernels without nvme hwmon (< 5.5, e.g. Ubuntu 18.04).
 ## Opening /dev/nvmeX needs root, so the command runs through 'sudo -n' when the node is not root.
 ## timeout runs inside sudo: sudo does not relay a SIGTERM sent from its own process group.
+## smartmontools and the sudoers rule for this exact command are set up by aristos_magic_bash
+## ("Setup NVMe temperature monitoring"): keep the command in sync with that rule.
 def get_smartctl_drive_temps():
     drives = []
     makes = []
@@ -128,8 +132,11 @@ def get_smartctl_drive_temps():
             temps.append(temp.group(1))
         else:
             temps.append('N/A')
-            rospy.logwarn_throttle(60, 'hdd_monitor: no temperature from "%s": %s'
-                                   % (' '.join(cmd), out.strip()[-200:]))
+            hint = ''
+            if re.search(r'password is required|not allowed|No such file', out):
+                hint = ' -> ' + SMARTCTL_SETUP_HINT
+            rospy.logwarn_throttle(60, 'hdd_monitor: no temperature from "%s": %s%s'
+                                   % (' '.join(cmd), out.strip()[-200:], hint))
 
     if not drives:
         return False, [ 'None' ], [ 'No NVMe device %s' % NVME_DEVICES ], [ 'N/A' ]

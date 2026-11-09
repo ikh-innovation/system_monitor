@@ -41,3 +41,16 @@ Keep in mind that this package has some dependencies. If you do not have them, y
   ```
   sudo apt-get install sysstat ifstat ntpdate
   ```
+
+## Drive temperature
+
+`hdd_monitor` selects the source with `~hdd_temp_source`: `hddtemp` (default), `sysfs`, `smartctl` or `auto`.
+With `auto` it reads the kernel hwmon sensors (`nvme`, `drivetemp`; NVMe needs kernel >= 5.5) and falls back
+to `smartctl` for NVMe drives on older kernels (e.g. Ubuntu 18.04). `smartctl` needs root, so the node runs it
+through `sudo -n`, which needs `smartmontools` and a sudoers rule for exactly this command:
+
+  ```
+  /usr/bin/timeout 5 /usr/sbin/smartctl -i -A /dev/nvmeN
+  ```
+
+On Aristos robots, the option "Setup NVMe temperature monitoring" of `aristos_magic_bash` sets both up.

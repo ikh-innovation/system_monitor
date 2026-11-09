@@ -48,7 +48,6 @@ install(PROGRAMS
    bin/net_monitor.py
    bin/ntp_monitor.py
    bin/system_monitor_node.py
-   scripts/setup_smartctl_fallback.sh
    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
